@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- БАЗОВЫЙ ТОН САЙТА ---------- */
+:root { color-scheme: light; }
+html, body { @apply bg-gray-50 text-gray-900; scroll-behavior: smooth; }
+.container { @apply max-w-5xl mx-auto px-4; }
+
+/* ---------- UI-ТОКЕНЫ ---------- */
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-white font-semibold shadow hover:bg-red-700 transition;
+}
+.badge { @apply inline-flex items-center rounded-md bg-gray-900/10 px-2 py-0.5 text-xs font-medium text-gray-700; }
+.card  { @apply rounded-xl border bg-white p-4 shadow-sm ring-1 ring-black/5; }
+
+/* ---------- HERO: ПРЕМИУМ-АНИМАЦИИ ---------- */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow {
+  0%,100% { box-shadow: 0 0 0 rgba(255,255,255,0); }
+  50%     { box-shadow: 0 0 40px rgba(239,68,68,.25); }
+}
+@keyframes gradient-move {
+  0% { background-position: 0% 50%;}
+  50%{ background-position: 100% 50%;}
+  100%{background-position: 0% 50%;}
+}
+.animate-fade-in { animation: fade-in .6s both; }
+.animate-fade-in-delay { animation: fade-in .8s .15s both; }
+.animate-fade-in-delay-2 { animation: fade-in 1s .3s both; }
+.animate-glow { animation: glow 4s infinite; }
+
+/* «живой» градиент */
+.hero-gradient {
+  background: linear-gradient(120deg,#0b0f1a, #101826, #0b0f1a);
+  background-size: 200% 200%;
+  animation: gradient-move 12s ease infinite;
+}
+
+/* эффект «шум/пыль» поверх баннера */
+.hero-noise:before{
+  content:"";
+  position:absolute; inset:0;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='table' tableValues='0 0 0 .06 .12 0'/></feComponentTransfer></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 360px 360px; opacity:.35; pointer-events:none;
+}
+
+/* ---------- КАРТОЧКИ БРЕНДОВ ---------- */
+.brand-tilt { transform: translateZ(0) rotate3d(1,0,0,0deg); transition: transform .4s ease, box-shadow .4s ease; }
+.brand-tilt:hover { transform: translateY(-2px) scale(1.01); }
+.brand-glow:hover { box-shadow: 0 12px 40px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.08); }
+
+.logo-glow { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); transition: filter .35s ease, transform .35s ease; }
+.group:hover .logo-glow { filter: drop-shadow(0 0 10px rgba(255,255,255,.35)); transform: translateY(-1px); }
+
+a { @apply no-underline; }
+
