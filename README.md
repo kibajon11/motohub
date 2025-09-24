@@ -1,5 +1,9 @@
 # 🏍️ MotoHub
 
+<img src="https://upload.wikimedia.org/wikipedia/commons/7/70/Honda_logo.png" alt="Honda" height="60"/> 
+<img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Yamaha_motor_logo.png" alt="Yamaha" height="60"/> 
+<img src="https://upload.wikimedia.org/wikipedia/commons/0/0a/Kawasaki_logo.svg" alt="Kawasaki" height="60"/>  
+
 **MotoHub** — это онлайн-платформа для поиска, просмотра и заказа деталей к популярным мотоциклам (Honda, Yamaha, Kawasaki).  
 Проект строится на **Next.js + Tailwind CSS** с загрузкой данных о моделях и деталях из **Excel-файлов (XLSX)**.  
 
