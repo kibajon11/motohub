@@ -3,38 +3,21 @@
 import React from "react";
 import Link from "next/link";
 import ModelImage from "../../../../../components/ModelImage";
+import { useCart } from "../../../../../components/CartProvider";
 
-// простейшая корзина в localStorage — дальше улучшим
-function useCart() {
-  const [cart, setCart] = React.useState([]);
-  React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem("cart");
-      setCart(raw ? JSON.parse(raw) : []);
-    } catch {
-      setCart([]);
-    }
-  }, []);
-  const add = (item) => {
-    setCart((prev) => {
-      const next = [...prev, item];
-      localStorage.setItem("cart", JSON.stringify(next));
-      return next;
-    });
-  };
-  const countByCode = (code) => cart.filter((i) => i.code === code).length;
-  return { cart, add, countByCode };
+function codeToSlug(code = "") {
+  return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
 export default function CategoryPage({ params }) {
   const { brand: brandSlug, model: modelSlug, category: categorySlug } = React.use(params);
   const [parts, setParts] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const { add, countByCode } = useCart();
+  const { addItem, items } = useCart();
 
   React.useEffect(() => {
     let mounted = true;
-    async function load() {
+    (async () => {
       try {
         const res = await fetch(`/api/parts/${brandSlug}/${modelSlug}/${categorySlug}`, { cache: "no-store" });
         const data = await res.json();
@@ -44,12 +27,16 @@ export default function CategoryPage({ params }) {
       } finally {
         if (mounted) setLoading(false);
       }
-    }
-    load();
+    })();
     return () => { mounted = false; };
   }, [brandSlug, modelSlug, categorySlug]);
 
-  if (loading) return <div className="p-6 text-gray-600">Загрузка деталей…</div>;
+  const inCartQtyByCode = React.useCallback(
+    (code) => (items.find((i) => i.code === code)?.qty || 0),
+    [items]
+  );
+
+  if (loading) return <div className="p-6 text-gray-300">Загрузка деталей…</div>;
 
   return (
     <section>
@@ -60,43 +47,49 @@ export default function CategoryPage({ params }) {
       </div>
 
       {parts.length === 0 ? (
-        <p className="text-gray-600">В этой категории пока пусто.</p>
+        <p className="text-gray-300">В этой категории пока пусто.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/5">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-white/10">
               <tr>
                 <th className="p-3 text-left">Фото</th>
                 <th className="p-3 text-left">Название</th>
                 <th className="p-3 text-left">Код</th>
                 <th className="p-3 text-left">Цвет</th>
-                <th className="p-3 text-left">Цена, THB</th>
+                <th className="p-3 text-right">Цена, THB</th>
                 <th className="p-3 text-left">Сток</th>
                 <th className="p-3 text-left">Действие</th>
               </tr>
             </thead>
             <tbody>
               {parts.map((p) => {
-                const inCart = countByCode(p.code);
+                const inCart = inCartQtyByCode(p.code);
                 const avail = Math.max(0, (p.stockQty || 0) - inCart);
                 const imgSrc = p.imageFile ? `/parts/${p.imageFile}` : "/placeholder.png";
                 const disabled = avail === 0;
+                const codeSlug = codeToSlug(p.code);
+
                 return (
-                  <tr key={p.code} className="border-t">
+                  <tr key={p.code} className="border-t border-white/10">
                     <td className="p-3">
-                      <div className="relative h-14 w-14 bg-gray-100 rounded">
+                      <div className="relative h-14 w-14 bg-white/10 rounded">
                         <ModelImage src={imgSrc} alt={p.name} fill className="object-contain p-1" />
                       </div>
                     </td>
-                    <td className="p-3">{p.name}</td>
+                    <td className="p-3">
+                      <Link className="text-blue-300 hover:underline" href={`/${brandSlug}/models/${modelSlug}/${categorySlug}/${codeSlug}`}>
+                        {p.name}
+                      </Link>
+                    </td>
                     <td className="p-3 font-mono">{p.code}</td>
                     <td className="p-3">{p.color || "-"}</td>
-                    <td className="p-3">{(p.priceTHB || 0).toLocaleString()}</td>
+                    <td className="p-3 text-right">{(p.priceTHB || 0).toLocaleString()}</td>
                     <td className="p-3">
                       {avail > 0 ? (
-                        <span className="badge">В наличии: {avail}</span>
+                        <span className="rounded bg-green-500/20 text-green-300 px-2 py-0.5">В наличии: {avail}</span>
                       ) : (
-                        <span className="badge bg-red-100 text-red-700">Out of stock</span>
+                        <span className="rounded bg-red-500/20 text-red-300 px-2 py-0.5">Out of stock</span>
                       )}
                     </td>
                     <td className="p-3">
@@ -104,17 +97,17 @@ export default function CategoryPage({ params }) {
                         className={`btn-primary ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                         disabled={disabled}
                         onClick={() =>
-                          add({
+                          addItem({
                             brand: brandSlug,
                             model: modelSlug,
                             category: categorySlug,
                             code: p.code,
                             name: p.name,
-                            priceTHB: p.priceTHB,
-                          })
+                            priceTHB: p.priceTHB || 0,
+                          }, 1)
                         }
                       >
-                        Добавить в корзину
+                        В корзину (1)
                       </button>
                     </td>
                   </tr>
@@ -125,7 +118,7 @@ export default function CategoryPage({ params }) {
         </div>
       )}
 
-      <div className="mt-8 flex gap-6 text-sm">
+      <div className="mt-8 flex gap-6 text-sm text-white/80">
         <Link href={`/${brandSlug}/models/${modelSlug}`}>← К категориям</Link>
         <Link href={`/${brandSlug}`}>К моделям {brandSlug}</Link>
         <Link href="/">На главную</Link>

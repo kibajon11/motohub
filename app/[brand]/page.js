@@ -1,94 +1,66 @@
-'use client';
-
-import React from "react";
 import Link from "next/link";
-import ModelImage from "../../components/ModelImage";
 
 function slugify(str = "") {
-  return str.toLowerCase().trim().replace(/\s+/g, "-");
+  return String(str).toLowerCase().trim().replace(/\s+/g, "-");
 }
 
-export default function BrandPage({ params }) {
-  const { brand: brandSlug } = React.use(params);
-  const [models, setModels] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
+export default async function BrandPage({ params }) {
+  // В Next 15 params — Promise; тут корректно его await-им
+  const { brand } = await params;
 
-  React.useEffect(() => {
-    let isMounted = true;
-    async function load() {
-      try {
-        const res = await fetch("/api/models", { cache: "no-store" });
-        const data = await res.json();
-        const list = data?.brands?.[brandSlug] || [];
-        if (isMounted) setModels(list);
-      } catch (e) {
-        if (isMounted) setModels([]);
-      } finally {
-        if (isMounted) setLoading(false);
+  // Читаем модели через стабильный API (не трогаем формат Excel)
+  let models = [];
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/models`, {
+      cache: "no-store",
+      // На dev можно без BASE_URL, но на всякий случай подстрахуемся:
+      // если пусто — ниже повторим запрос относительным путём
+    });
+    if (res.ok) {
+      const data = await res.json();
+      models = data?.brands?.[brand] || [];
+    }
+    if (!models.length) {
+      // Повторяем относительным путём (для dev)
+      const res2 = await fetch("/api/models", { cache: "no-store" });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        models = data2?.brands?.[brand] || [];
       }
     }
-    load();
-    return () => { isMounted = false; };
-  }, [brandSlug]);
+  } catch (_) {
+    // Если API недоступно — оставим models пустым
+    models = [];
+  }
 
-  const themes = {
-    honda: { gradient: "from-red-600/90 to-red-800/90", logo: "/brands/honda.png" },
-    yamaha:{ gradient: "from-blue-600/90 to-blue-800/90", logo: "/brands/yamaha.png" },
-    kawasaki:{ gradient: "from-green-600/90 to-green-800/90", logo: "/brands/kawasaki.png" },
-  };
-  const theme = themes[brandSlug] ?? { gradient: "from-gray-700/90 to-gray-900/90", logo: "" };
+  if (!models.length) {
+    return (
+      <div className="p-6 text-red-400">
+        Для бренда «{brand}» модели не найдены. Проверь <code>public/data/models.xlsx</code>.
+      </div>
+    );
+  }
 
   return (
     <section>
-      {/* Баннер */}
-      <div className={`relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-r ${theme.gradient} shadow-lg`}>
-        <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 text-center text-white">
-          {theme.logo ? (
-            <img src={theme.logo} alt={brandSlug} className="mb-4 h-14 w-36 object-contain drop-shadow-lg" />
-          ) : null}
-          <h1 className="text-4xl font-extrabold capitalize">{brandSlug}</h1>
-          <p className="mt-2 text-gray-100">Каталог моделей {brandSlug}</p>
-        </div>
-      </div>
-
-      {/* Список моделей из Excel */}
-      {loading ? (
-        <p className="text-gray-600">Загрузка моделей…</p>
-      ) : models.length === 0 ? (
-        <p className="text-gray-600">Пока нет моделей за 2023–2025.</p>
-      ) : (
-        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {models.map((m) => {
-            const s = slugify(m.name);
-            return (
-              <li key={s} className="group relative overflow-hidden rounded-2xl bg-white shadow hover:shadow-xl transition transform hover:-translate-y-1">
-                <Link href={`/${brandSlug}/models/${s}`}>
-                  <div className="relative h-32 w-full bg-gray-100">
-                    <ModelImage
-                      src={`/models/${s}.png`}
-                      alt={m.name}
-                      fill
-                      className="object-contain p-4 group-hover:scale-105 transition"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold">{m.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      Годы: {m.from ?? "?"}–{m.to ?? "?"}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div className="mt-8">
-        <Link href="/" className="text-sm text-gray-600 hover:text-black">
-          ← Назад к брендам
-        </Link>
-      </div>
+      <h1 className="mb-6 text-3xl font-extrabold capitalize">{brand} — модели</h1>
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {models.map((m) => {
+          const slug = slugify(m.name);
+          return (
+            <li
+              key={m.name}
+              className="rounded-2xl border border-white/10 bg-white/5 p-6 hover:bg-white/10 transition"
+            >
+              <Link href={`/${brand}/models/${slug}`} className="block">
+                <div className="relative h-40 w-full rounded-lg bg-white/10" />
+                <div className="mt-4 text-xl font-bold">{m.name}</div>
+                <div className="text-white/70 text-sm mt-1">Открыть категории →</div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
