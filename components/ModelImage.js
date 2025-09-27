@@ -1,17 +1,19 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
+import React from "react";
 
-/** Обертка над <Image/>: если файла нет — показывает /placeholder.png */
-export default function ModelImage({ src, alt, ...rest }) {
-  const [imgSrc, setImgSrc] = useState(src);
+export default function ModelImage({ src, alt = "", className = "", ...props }) {
+  const [error, setError] = React.useState(false);
+  const finalSrc = error ? "/placeholder.png" : (src || "/placeholder.png");
+
   return (
     <Image
-      {...rest}
-      src={imgSrc}
+      src={finalSrc}
       alt={alt}
-      onError={() => setImgSrc("/placeholder.png")}
+      onError={() => setError(true)}
+      className={className}
+      {...props}
     />
   );
 }
