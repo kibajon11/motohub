@@ -1,128 +1,74 @@
-'use client';
+"use client";
 
 import React from "react";
 import Link from "next/link";
-import ModelImage from "../../../../../components/ModelImage";
-import { useCart } from "../../../../../components/CartProvider";
-
-function codeToSlug(code = "") {
-  return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
+import Image from "next/image";
 
 export default function CategoryPage({ params }) {
-  const { brand: brandSlug, model: modelSlug, category: categorySlug } = React.use(params);
+  const p = React.use(params);
+  const brand = p.brand;
+  const model = p.model;
+  const category = p.category;
+
   const [parts, setParts] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const { addItem, items } = useCart();
+  const [state, setState] = React.useState({ loading: true, error: "" });
 
   React.useEffect(() => {
-    let mounted = true;
+    let alive = true;
     (async () => {
       try {
-        const res = await fetch(`/api/parts/${brandSlug}/${modelSlug}/${categorySlug}`, { cache: "no-store" });
+        setState({ loading: true, error: "" });
+        const res = await fetch(`/api/parts/${brand}/${model}/${category}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (mounted) setParts(data?.parts || []);
-      } catch {
-        if (mounted) setParts([]);
-      } finally {
-        if (mounted) setLoading(false);
+        if (!alive) return;
+        setParts(data?.parts || []);
+        setState({ loading: false, error: "" });
+      } catch (e) {
+        if (!alive) return;
+        setState({ loading: false, error: String(e) });
       }
     })();
-    return () => { mounted = false; };
-  }, [brandSlug, modelSlug, categorySlug]);
+    return () => { alive = false; };
+  }, [brand, model, category]);
 
-  const inCartQtyByCode = React.useCallback(
-    (code) => (items.find((i) => i.code === code)?.qty || 0),
-    [items]
-  );
-
-  if (loading) return <div className="p-6 text-gray-300">Загрузка деталей…</div>;
+  if (state.loading) return <div className="p-6">Загрузка деталей…</div>;
+  if (state.error)   return <div className="p-6 text-red-400">Ошибка: {state.error}</div>;
+  if (!parts.length) {
+    return <div className="p-6 text-white/80">Детали не найдены в категории {category.toUpperCase()}.</div>;
+  }
 
   return (
-    <section>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold capitalize">
-          {brandSlug} / {modelSlug.replace(/-/g, " ")} / {categorySlug}
-        </h1>
-      </div>
+    <section className="p-6">
+      <h1 className="text-2xl md:text-3xl font-bold mb-6">
+        {brand.toUpperCase()} — {model.toUpperCase()} — {category.toUpperCase()}
+      </h1>
 
-      {parts.length === 0 ? (
-        <p className="text-gray-300">В этой категории пока пусто.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/5">
-          <table className="min-w-full text-sm">
-            <thead className="bg-white/10">
-              <tr>
-                <th className="p-3 text-left">Фото</th>
-                <th className="p-3 text-left">Название</th>
-                <th className="p-3 text-left">Код</th>
-                <th className="p-3 text-left">Цвет</th>
-                <th className="p-3 text-right">Цена, THB</th>
-                <th className="p-3 text-left">Сток</th>
-                <th className="p-3 text-left">Действие</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parts.map((p) => {
-                const inCart = inCartQtyByCode(p.code);
-                const avail = Math.max(0, (p.stockQty || 0) - inCart);
-                const imgSrc = p.imageFile ? `/parts/${p.imageFile}` : "/placeholder.png";
-                const disabled = avail === 0;
-                const codeSlug = codeToSlug(p.code);
-
-                return (
-                  <tr key={p.code} className="border-t border-white/10">
-                    <td className="p-3">
-                      <div className="relative h-14 w-14 bg-white/10 rounded">
-                        <ModelImage src={imgSrc} alt={p.name} fill className="object-contain p-1" />
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <Link className="text-blue-300 hover:underline" href={`/${brandSlug}/models/${modelSlug}/${categorySlug}/${codeSlug}`}>
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className="p-3 font-mono">{p.code}</td>
-                    <td className="p-3">{p.color || "-"}</td>
-                    <td className="p-3 text-right">{(p.priceTHB || 0).toLocaleString()}</td>
-                    <td className="p-3">
-                      {avail > 0 ? (
-                        <span className="rounded bg-green-500/20 text-green-300 px-2 py-0.5">В наличии: {avail}</span>
-                      ) : (
-                        <span className="rounded bg-red-500/20 text-red-300 px-2 py-0.5">Out of stock</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <button
-                        className={`btn-primary ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                        disabled={disabled}
-                        onClick={() =>
-                          addItem({
-                            brand: brandSlug,
-                            model: modelSlug,
-                            category: categorySlug,
-                            code: p.code,
-                            name: p.name,
-                            priceTHB: p.priceTHB || 0,
-                          }, 1)
-                        }
-                      >
-                        В корзину (1)
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="mt-8 flex gap-6 text-sm text-white/80">
-        <Link href={`/${brandSlug}/models/${modelSlug}`}>← К категориям</Link>
-        <Link href={`/${brandSlug}`}>К моделям {brandSlug}</Link>
-        <Link href="/">На главную</Link>
-      </div>
+      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {parts.map((part) => (
+          <li key={part.code}
+              className="rounded-xl border border-white/10 bg-[#141922] p-4 hover:bg-white/[0.08] transition">
+            <Link href={`/${brand}/models/${model}/${category}/${(part.code||"").toLowerCase()}`} className="block">
+              <div className="flex flex-col items-center">
+                <div className="relative w-full h-36 bg-white/5 rounded overflow-hidden">
+                  <Image
+                    src={`/parts/${part.imageFile || "example.png"}`}
+                    alt={part.name || part.code}
+                    fill
+                    className="object-contain p-3 group-hover:scale-105 transition"
+                  />
+                </div>
+                <h2 className="mt-3 text-base font-semibold text-white group-hover:text-blue-400 transition">
+                  {part.name}
+                </h2>
+                <p className="text-sm text-white/70">Код: {part.code}</p>
+                {part.color ? <p className="text-sm text-white/70">Цвет: {part.color}</p> : null}
+                <p className="text-md font-bold mt-2">{Number(part.price)} ฿</p>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

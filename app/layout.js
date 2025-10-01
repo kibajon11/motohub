@@ -1,27 +1,22 @@
-import "../styles/globals.css";
-import Header from "../components/Header";
-import Footer from "../components/Footer";
-import { Inter } from "next/font/google";
-import { CartProvider } from "../components/CartProvider";
-
-const inter = Inter({ subsets: ["latin", "cyrillic"], display: "swap" });
+import './globals.css';
+import Providers from './providers';
+import Header from '@/components/Header';
 
 export const metadata = {
-  title: "MotoHub — Каталог запчастей",
-  description: "Каталог запчастей: Honda, Yamaha, Kawasaki. Pattaya, Thailand",
+  title: 'MotoHub',
+  description: 'Parts • Pattaya • Thailand',
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ru">
-      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white`}>
-        <CartProvider>
-          <div className="container mx-auto px-4 py-6">
+    <html lang="ru" className="dark" suppressHydrationWarning>
+      <body className="min-h-screen bg-neutral-950 text-slate-100">
+        <Providers>
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <Header />
-            <main className="py-6">{children}</main>
-            <Footer />
+            <main className="pb-10">{children}</main>
           </div>
-        </CartProvider>
+        </Providers>
       </body>
     </html>
   );

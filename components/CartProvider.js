@@ -1,72 +1,37 @@
-'use client';
+"use client";
 
-import React from "react";
+import { createContext, useContext, useState } from "react";
 
-const CartContext = React.createContext(null);
-
-function load() {
-  if (typeof window === "undefined") return { items: [] };
-  try {
-    const raw = localStorage.getItem("motohub_cart");
-    return raw ? JSON.parse(raw) : { items: [] };
-  } catch {
-    return { items: [] };
-  }
-}
-
-function save(state) {
-  try {
-    localStorage.setItem("motohub_cart", JSON.stringify(state));
-  } catch {}
-}
+const CartContext = createContext();
 
 export function CartProvider({ children }) {
-  const [items, setItems] = React.useState(() => load().items || []);
+  const [items, setItems] = useState([]);
 
-  const totalQty = React.useMemo(() => items.reduce((s, x) => s + (x.qty || 0), 0), [items]);
-  const totalPriceTHB = React.useMemo(() => items.reduce((s, x) => s + (x.qty * (x.priceTHB || 0)), 0), [items]);
-
-  React.useEffect(() => {
-    save({ items });
-  }, [items]);
-
-  function addItem(item, qty = 1) {
-    setItems((list) => {
-      const idx = list.findIndex((x) => x.code === item.code);
-      if (idx >= 0) {
-        const copy = [...list];
-        copy[idx] = { ...copy[idx], qty: Math.min(999, (copy[idx].qty || 0) + qty) };
-        return copy;
+  const addToCart = (item) => {
+    setItems((prev) => {
+      const exist = prev.find((i) => i.code === item.code);
+      if (exist) {
+        return prev.map((i) =>
+          i.code === item.code ? { ...i, qty: i.qty + item.qty } : i
+        );
       }
-      return [...list, { ...item, qty }];
+      return [...prev, item];
     });
-  }
+  };
 
-  function removeItem(code) {
-    setItems((list) => list.filter((x) => x.code !== code));
-  }
+  const removeFromCart = (code) => {
+    setItems((prev) => prev.filter((i) => i.code !== code));
+  };
 
-  function increment(code, d = 1) {
-    setItems((list) => list.map((x) => (x.code === code ? { ...x, qty: Math.min(999, x.qty + d) } : x)));
-  }
-
-  function decrement(code, d = 1) {
-    setItems((list) => list.map((x) => (x.code === code ? { ...x, qty: Math.max(1, x.qty - d) } : x)));
-  }
-
-  function clear() {
-    setItems([]);
-  }
+  const clearCart = () => setItems([]);
 
   return (
-    <CartContext.Provider value={{ items, totalQty, totalPriceTHB, addItem, removeItem, increment, decrement, clear }}>
+    <CartContext.Provider value={{ items, addToCart, removeFromCart, clearCart }}>
       {children}
     </CartContext.Provider>
   );
 }
 
 export function useCart() {
-  const ctx = React.useContext(CartContext);
-  if (!ctx) throw new Error("useCart must be used within <CartProvider>");
-  return ctx;
+  return useContext(CartContext);
 }

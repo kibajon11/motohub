@@ -1,41 +1,43 @@
-import { NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
+import fs from "fs";
 import * as XLSX from "xlsx";
+
+function fallback() {
+  return {
+    brands: {
+      honda: [
+        { name: "Forza 350", slug: "forza-350", years: "", imageFile: "forza-350.png" },
+        { name: "PCX 160",   slug: "pcx-160",   years: "", imageFile: "pcx-160.png" },
+      ],
+      yamaha: [{ name: "NMAX 155", slug: "nmax-155", years: "", imageFile: "nmax-155.png" }],
+      kawasaki: [{ name: "Ninja 400", slug: "ninja-400", years: "", imageFile: "ninja-400.png" }],
+    },
+  };
+}
 
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), "public", "data", "models.xlsx");
-
-    // Если файла нет — просто отдаём пустую структуру (без 500)
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ brands: {} }, { status: 200 });
+    const file = path.join(process.cwd(), "public", "data", "models.xlsx");
+    if (!fs.existsSync(file)) {
+      return Response.json(fallback(), { status: 200 });
     }
 
-    const buf = fs.readFileSync(filePath);
+    const buf = fs.readFileSync(file);
     const wb = XLSX.read(buf, { type: "buffer" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    if (!ws) return NextResponse.json({ brands: {} }, { status: 200 });
-
-    // Читаем строки, пустые поля не превращаем в undefined
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-    // Ожидаем колонки Brand и ModelName (как мы изначально сделали)
     const brands = {};
-    for (const r of rows) {
-      const brand = String(r.Brand || "").toLowerCase().trim();
-      const name = String(r.ModelName || "").trim();
-      if (!brand || !name) continue;
-      if (!brands[brand]) brands[brand] = [];
-      brands[brand].push({ name }); // slug делаем на странице
+
+    for (const sheetName of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+      brands[sheetName.toLowerCase()] = rows.map((r) => ({
+        name: r.name,
+        slug: r.slug || String(r.name || "").toLowerCase().trim().replace(/\s+/g, "-"),
+        years: r.years || "",
+        imageFile: r.imageFile || "placeholder.png",
+      }));
     }
 
-    return NextResponse.json({ brands }, { status: 200 });
+    return Response.json({ brands }, { status: 200 });
   } catch (e) {
-    // Не валим сервер 500-ками без смысла — отдадим пусто, но с пояснением
-    return NextResponse.json(
-      { brands: {}, error: "models.xlsx read error: " + String(e) },
-      { status: 200 }
-    );
+    return Response.json({ ...fallback(), error: String(e) }, { status: 200 });
   }
 }

@@ -1,148 +1,123 @@
 'use client';
 
-import React from "react";
-import Link from "next/link";
-import ModelImage from "../../../../../../components/ModelImage";
-import { useCart } from "../../../../../../components/CartProvider";
+import Image from 'next/image';
+import { useParams } from 'next/navigation';
+import React from 'react';
+import { useCart } from '@/lib/cart-context';
 
-function codeToSlug(code = "") {
-  return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-function slugToMatcher(slug = "") {
-  const re = new RegExp("^" + slug.replace(/-/g, "[^a-zA-Z0-9]+") + "$", "i");
-  return (code) => re.test(codeToSlug(code));
-}
+const COLORS = [
+  { code: 'black',   label: 'Black',   swatch: '#0b0b0b' },
+  { code: 'white',   label: 'White',   swatch: '#e5e7eb' },
+  { code: 'red',     label: 'Red',     swatch: '#ef4444' },
+  { code: 'blue',    label: 'Blue',    swatch: '#3b82f6' },
+  { code: 'silver',  label: 'Silver',  swatch: '#9ca3af' },
+];
 
-export default function PartPage({ params }) {
-  const { brand: brandSlug, model: modelSlug, category: categorySlug, code: codeSlug } = React.use(params);
-  const [part, setPart] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
+export default function PartPage() {
+  const params = useParams();
+  const { add } = useCart();
+
+  // Демоданные — подставь реальные по необходимости
+  const baseId = String(params.code);
+  const title = `${(params.brand || '').toUpperCase()} ${params.model || ''} — ${params.category || ''} — ${params.code || ''}`;
+  const price = 1500;
+  const img = '/models/pcx-160.png'; // положи файл в /public/models/ или замени путь на существующий
+
+  const [color, setColor] = React.useState(null);
   const [qty, setQty] = React.useState(1);
-  const [selectedColor, setSelectedColor] = React.useState("");
-  const { addItem, items } = useCart();
 
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch(`/api/parts/${brandSlug}/${modelSlug}/${categorySlug}`, { cache: "no-store" });
-        const data = await res.json();
-        const matchSlug = slugToMatcher(codeSlug);
-        const found = (data?.parts || []).find((p) => matchSlug(p.code)) || null;
-        if (mounted) {
-          setPart(found);
-          if (found) {
-            const colors = (found.color || "").split(",").map((s) => s.trim()).filter(Boolean);
-            setSelectedColor(colors[0] || "");
-          }
-        }
-      } catch {
-        if (mounted) setPart(null);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [brandSlug, modelSlug, categorySlug, codeSlug]);
-
-  const inCart = part ? (items.find((i) => i.code === part.code)?.qty || 0) : 0;
-  const avail = part ? Math.max(0, (part.stockQty || 0) - inCart) : 0;
-  const price = part?.priceTHB || 0;
   const total = price * qty;
 
-  function dec() { setQty((q) => Math.max(1, q - 1)); }
-  function inc() { setQty((q) => Math.min(999, q + 1)); }
+  const dec = () => setQty((q) => Math.max(1, q - 1));
+  const inc = () => setQty((q) => q + 1);
 
-  function addToCart() {
-    if (!part) return;
-    addItem({
-      brand: brandSlug,
-      model: modelSlug,
-      category: categorySlug,
-      code: part.code,
-      name: part.name + (selectedColor ? ` (${selectedColor})` : ""),
-      priceTHB: part.priceTHB || 0,
-    }, qty);
-  }
+  const canAdd = Boolean(color) && qty >= 1;
 
-  if (loading) return <div className="p-6 text-gray-300">Загрузка…</div>;
-  if (!part) return <div className="p-6 text-red-300">Деталь не найдена</div>;
-
-  const imgSrc = part.imageFile ? `/parts/${part.imageFile}` : "/placeholder.png";
-  const colors = (part.color || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const disabled = avail <= 0;
+  const onAdd = () => {
+    if (!canAdd) return;
+    // Делаем уникальный id для варианта (код + цвет)
+    const id = `${baseId}::${color}`;
+    add({ id, title: `${title} (${color})`, price, image: img }, qty);
+  };
 
   return (
-    <section>
-      <div className="mb-6">
-        <nav className="text-sm text-white/70">
-          <Link href="/">Главная</Link> <span>›</span>{" "}
-          <Link href={`/${brandSlug}`}>{brandSlug}</Link> <span>›</span>{" "}
-          <Link href={`/${brandSlug}/models/${modelSlug}`}>{modelSlug.replace(/-/g, " ")}</Link> <span>›</span>{" "}
-          <Link href={`/${brandSlug}/models/${modelSlug}/${categorySlug}`}>{categorySlug}</Link> <span>›</span>{" "}
-          <span className="text-white">{part.name}</span>
-        </nav>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="relative h-72 w-full bg-white/10 rounded-lg">
-            <ModelImage src={imgSrc} alt={part.name} fill className="object-contain p-4" />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <h1 className="mb-2 text-2xl font-bold">{part.name}</h1>
-          <p className="mb-4 font-mono text-sm text-white/70">Код: {part.code}</p>
-          {part.notes && <p className="mb-4 text-sm text-white/90">{part.notes}</p>}
-
-          <div className="mb-4">
-            <div className="text-3xl font-extrabold">{price.toLocaleString()} THB</div>
-            <div className="text-sm text-white/70">за 1 шт.</div>
-          </div>
-
-          {colors.length > 0 && (
-            <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium">Цвет</label>
-              <select value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)} className="w-full rounded-md border border-white/15 bg-white/10 p-2">
-                {colors.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="mb-4 flex items-center gap-3">
-            <button className="rounded-md border border-white/20 px-3 py-1.5 hover:bg-white/10" onClick={dec}>−</button>
-            <input
-              value={qty}
-              onChange={(e) => {
-                const n = Math.max(1, Math.min(999, Number(e.target.value) || 1));
-                setQty(n);
-              }}
-              type="number"
-              min="1"
-              className="w-20 rounded-md border border-white/20 bg-transparent p-2 text-center"
+    <div className="p-4 sm:p-6 space-y-6 rounded-2xl border border-white/10 bg-neutral-900/40">
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="w-full md:w-1/3">
+          <div className="aspect-square rounded-2xl overflow-hidden bg-neutral-900 border border-white/10">
+            <Image
+              src={img}
+              alt={title}
+              width={800}
+              height={800}
+              className="h-full w-full object-cover"
+              priority
             />
-            <button className="rounded-md border border-white/20 px-3 py-1.5 hover:bg-white/10" onClick={inc}>+</button>
-            <span className="ml-3 text-sm text-white/70">
-              В наличии: {avail}
-            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-5">
+          <h1 className="text-2xl font-bold">{title}</h1>
+          <div className="text-xl opacity-80">Цена: ฿ {price.toLocaleString('en-US')}</div>
+
+          {/* Выбор цвета */}
+          <div className="space-y-2">
+            <div className="text-sm text-white/70">Цвет</div>
+            <div className="flex flex-wrap gap-2">
+              {COLORS.map(c => (
+                <button
+                  key={c.code}
+                  onClick={() => setColor(c.code)}
+                  className={`relative h-10 rounded-xl border ${color === c.code ? 'border-white/60' : 'border-white/15'} px-4 flex items-center gap-3 bg-white/5 hover:bg-white/10 transition`}
+                  aria-pressed={color === c.code}
+                >
+                  <span className="inline-block h-6 w-6 rounded-md" style={{ backgroundColor: c.swatch }} />
+                  <span className="text-sm">{c.label}</span>
+                </button>
+              ))}
+            </div>
+            {!color && <div className="text-xs text-amber-300/90">Пожалуйста, выбери цвет</div>}
           </div>
 
-          <div className="mb-6 text-lg">
-            Итого: <b>{total.toLocaleString()} THB</b>
+          {/* Количество + онлайн сумма */}
+          <div className="flex items-center gap-4">
+            <div className="inline-flex items-center rounded-xl border border-white/15 bg-white/5">
+              <button onClick={dec} className="px-3 py-2 hover:bg-white/10">−</button>
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={e => setQty(Math.max(1, Number(e.target.value) || 1))}
+                className="w-16 bg-transparent text-center outline-none"
+              />
+              <button onClick={inc} className="px-3 py-2 hover:bg-white/10">+</button>
+            </div>
+
+            <div className="text-lg">
+              Итого: <span className="font-semibold">฿ {total.toLocaleString('en-US')}</span>
+            </div>
           </div>
 
-          <button
-            disabled={disabled || qty > avail}
-            className={`btn-primary ${disabled || qty > avail ? "opacity-50 cursor-not-allowed" : ""}`}
-            onClick={addToCart}
-          >
-            Добавить в корзину
-          </button>
+          {/* Кнопки действий */}
+          <div className="flex gap-3">
+            <button
+              onClick={onAdd}
+              disabled={!canAdd}
+              className={`px-5 py-3 rounded-xl text-white ${canAdd ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-neutral-700 cursor-not-allowed'} transition`}
+            >
+              Добавить в корзину
+            </button>
+
+            <a
+              href="https://wa.me/66812345678"
+              target="_blank"
+              className="px-5 py-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+            >
+              WhatsApp
+            </a>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

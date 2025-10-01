@@ -1,78 +1,40 @@
-import { NextResponse } from "next/server";
-import path from "path";
 import fs from "fs";
-import * as XLSX from "xlsx";
+import path from "path";
 
-const MASTER = [
-  { slug: "body", partsFile: "parts_body.xlsx" },
-  { slug: "engine", partsFile: "parts_engine.xlsx" },
-  { slug: "transmission", partsFile: "parts_transmission.xlsx" },
-  { slug: "suspension", partsFile: "parts_suspension.xlsx" },
-  { slug: "brakes", partsFile: "parts_brakes.xlsx" },
-  { slug: "electrical", partsFile: "parts_electrical.xlsx" },
-  { slug: "exhaust", partsFile: "parts_exhaust.xlsx" },
-  { slug: "cooling", partsFile: "parts_cooling.xlsx" },
-  { slug: "fuel", partsFile: "parts_fuel.xlsx" },
-  { slug: "controls", partsFile: "parts_controls.xlsx" },
-  { slug: "wheels", partsFile: "parts_wheels.xlsx" },
-  { slug: "lighting", partsFile: "parts_lighting.xlsx" },
-  { slug: "accessories", partsFile: "parts_accessories.xlsx" },
-];
-
-function resolvePartsTarget(brand, model, category) {
-  const baseDir = path.join(process.cwd(), "public", "data", brand, model);
-  const catFile = path.join(baseDir, "categories.xlsx");
-
-  if (fs.existsSync(catFile)) {
-    try {
-      const catBuf = fs.readFileSync(catFile);
-      const wbCat = XLSX.read(catBuf, { type: "buffer" });
-      const wsCat = wbCat.Sheets[wbCat.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(wsCat, { defval: "" });
-      const found = rows.find(
-        (r) => String(r.CategorySlug || "").trim().toLowerCase() === String(category).toLowerCase()
-      );
-      if (found && found.PartsFile) {
-        return path.join(baseDir, String(found.PartsFile).trim());
-      }
-    } catch {}
-  }
-
-  const master = MASTER.find((c) => c.slug === String(category).toLowerCase());
-  const partsFile = master?.partsFile || `parts_${category}.xlsx`;
-  return path.join(baseDir, partsFile);
-}
-
-function ensureDirFor(filePath) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-export async function POST(req, { params }) {
+export async function POST(request, { params }) {
   try {
-    const brand = String(params.brand || "").toLowerCase();
-    const model = String(params.model || "").toLowerCase();
-    const category = String(params.category || "").toLowerCase();
+    // ⬇️ важно в Next 15
+    const p = await params;
+    const brand = String(p.brand || "").toLowerCase();
+    const model = String(p.model || "").toLowerCase();
+    const category = String(p.category || "").toLowerCase();
 
-    const form = await req.formData();
-    const file = form.get("file");
-    if (!file) {
-      return NextResponse.json({ error: "Файл не получен" }, { status: 400 });
+    const formData = await request.formData();
+    const file = formData.get("file");
+
+    if (!file || !file.name) {
+      return Response.json({ ok: false, error: "Файл (form field 'file') не получен" }, { status: 400 });
     }
-    if (!file.name.endsWith(".xlsx")) {
-      return NextResponse.json({ error: "Ожидается .xlsx" }, { status: 400 });
+
+    // Куда сохраняем
+    const dir = path.join(process.cwd(), "public", "data", brand, model);
+    await fs.promises.mkdir(dir, { recursive: true });
+
+    // Имя файла: categories.xlsx или parts_<category>.xlsx
+    let target = "";
+    if (category === "categories") {
+      target = path.join(dir, "categories.xlsx");
+    } else {
+      target = path.join(dir, `parts_${category}.xlsx`);
     }
 
-    const targetPath = resolvePartsTarget(brand, model, category);
-    ensureDirFor(targetPath);
-
+    // Сохраняем тело файла
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    await fs.promises.writeFile(target, buffer);
 
-    fs.writeFileSync(targetPath, buffer);
-
-    return NextResponse.json({ ok: true, saved: path.basename(targetPath) });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return Response.json({ ok: true, saved: `data/${brand}/${model}/${path.basename(target)}` }, { status: 200 });
+  } catch (err) {
+    return Response.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }

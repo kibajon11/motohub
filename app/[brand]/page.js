@@ -1,38 +1,36 @@
+"use client";
+
+import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 
-function slugify(str = "") {
-  return String(str).toLowerCase().trim().replace(/\s+/g, "-");
-}
+export default function BrandPage({ params }) {
+  const brand = React.use(params).brand;
 
-export default async function BrandPage({ params }) {
-  // В Next 15 params — Promise; тут корректно его await-им
-  const { brand } = await params;
+  const [models, setModels] = React.useState([]);
+  const [state, setState] = React.useState({ loading: true, error: "" });
 
-  // Читаем модели через стабильный API (не трогаем формат Excel)
-  let models = [];
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/models`, {
-      cache: "no-store",
-      // На dev можно без BASE_URL, но на всякий случай подстрахуемся:
-      // если пусто — ниже повторим запрос относительным путём
-    });
-    if (res.ok) {
-      const data = await res.json();
-      models = data?.brands?.[brand] || [];
-    }
-    if (!models.length) {
-      // Повторяем относительным путём (для dev)
-      const res2 = await fetch("/api/models", { cache: "no-store" });
-      if (res2.ok) {
-        const data2 = await res2.json();
-        models = data2?.brands?.[brand] || [];
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setState({ loading: true, error: "" });
+        const res = await fetch("/api/models", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!alive) return;
+        setModels(data?.brands?.[brand] || []);
+        setState({ loading: false, error: "" });
+      } catch (e) {
+        if (!alive) return;
+        setState({ loading: false, error: String(e) });
       }
-    }
-  } catch (_) {
-    // Если API недоступно — оставим models пустым
-    models = [];
-  }
+    })();
+    return () => { alive = false; };
+  }, [brand]);
 
+  if (state.loading) return <div className="p-6">Загрузка моделей…</div>;
+  if (state.error)   return <div className="p-6 text-red-400">Ошибка: {state.error}</div>;
   if (!models.length) {
     return (
       <div className="p-6 text-red-400">
@@ -42,24 +40,27 @@ export default async function BrandPage({ params }) {
   }
 
   return (
-    <section>
-      <h1 className="mb-6 text-3xl font-extrabold capitalize">{brand} — модели</h1>
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {models.map((m) => {
-          const slug = slugify(m.name);
-          return (
-            <li
-              key={m.name}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 hover:bg-white/10 transition"
-            >
-              <Link href={`/${brand}/models/${slug}`} className="block">
-                <div className="relative h-40 w-full rounded-lg bg-white/10" />
-                <div className="mt-4 text-xl font-bold">{m.name}</div>
-                <div className="text-white/70 text-sm mt-1">Открыть категории →</div>
-              </Link>
-            </li>
-          );
-        })}
+    <section className="p-6">
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 capitalize">{brand} — модели</h1>
+
+      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {models.map((m) => (
+          <li key={m.slug || m.name}
+              className="group rounded-xl border border-white/10 bg-[#141922] p-4 hover:bg-white/[0.08] transition">
+            <Link href={`/${brand}/models/${m.slug || (m.name||"").toLowerCase().replace(/\s+/g,"-")}`} className="block">
+              <div className="relative h-40 w-full rounded bg-white/5 overflow-hidden">
+                <Image
+                  src={`/models/${m.imageFile || "placeholder.png"}`}
+                  alt={m.name || "model"}
+                  fill
+                  className="object-contain p-4 group-hover:scale-105 transition"
+                />
+              </div>
+              <h2 className="mt-4 text-lg font-semibold text-white">{m.name}</h2>
+              {m.years ? <p className="text-sm text-white/60">{m.years}</p> : null}
+            </Link>
+          </li>
+        ))}
       </ul>
     </section>
   );

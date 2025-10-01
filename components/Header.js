@@ -4,34 +4,46 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 import { Menu, X, ShoppingCart, MessageCircle } from "lucide-react";
-import { useCart } from "./CartProvider";
+import { useCart } from "@/lib/cart-context";
 
+// Бренды в шапке
 const BRANDS = [
   { slug: "honda", name: "Honda" },
   { slug: "yamaha", name: "Yamaha" },
   { slug: "kawasaki", name: "Kawasaki" },
 ];
 
-const WHATSAPP_NUMBER = "66812345678"; // замени
+// В дев-режиме ссылка «Админ» всегда есть; в проде — только по флагу
+const showAdmin = process.env.NEXT_PUBLIC_SHOW_ADMIN === "1" || process.env.NODE_ENV !== "production";
+
+const NAV_PAGES = [
+  { href: "/price", label: "Прайс" },
+  ...(showAdmin ? [{ href: "/admin", label: "Админ" }] : []),
+];
+
+const WHATSAPP_NUMBER = "66812345678"; // замени на свой
 
 function formatTHB(n) {
-  return (n || 0).toLocaleString("en-US");
+  return (Number(n) || 0).toLocaleString("en-US");
 }
 
 export default function Header() {
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const pathname = usePathname();
-  const { totalQty, totalPriceTHB } = useCart();
+  const { totalQty, totalPrice, hydrated } = useCart();
 
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  React.useEffect(() => { setOpen(false); }, [pathname]);
+  React.useEffect(() => { setMounted(true); }, []);
+
+  // Показываем суммы только после монтирования + гидрации
+  const showTotals = mounted && hydrated;
 
   return (
     <header className="mb-6">
-      <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/5 p-3 sm:p-4 shadow-lg shadow-black/20">
+      <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 backdrop-blur p-3 sm:p-4 shadow-lg shadow-black/20">
         <div className="flex items-center justify-between gap-3">
-          {/* Logo */}
+          {/* Лого */}
           <Link href="/" className="group inline-flex items-center gap-3">
             <div className="relative">
               <span className="inline-block h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 group-hover:scale-105 transition-transform"></span>
@@ -46,20 +58,21 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* Desktop Nav */}
+          {/* Навигация (десктоп) */}
           <nav className="hidden md:flex items-center gap-2">
             {BRANDS.map((b) => (
-              <Link
-                key={b.slug}
-                href={`/${b.slug}`}
-                className="rounded-xl px-3 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 transition"
-              >
+              <Link key={b.slug} href={`/${b.slug}`} className="rounded-xl px-3 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 transition">
                 {b.name}
+              </Link>
+            ))}
+            {NAV_PAGES.map((i) => (
+              <Link key={i.href} href={i.href} className="rounded-xl px-3 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 transition">
+                {i.label}
               </Link>
             ))}
           </nav>
 
-          {/* Actions */}
+          {/* Действия справа */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* WhatsApp */}
             <a
@@ -74,7 +87,7 @@ export default function Header() {
               <span className="hidden sm:inline">WhatsApp</span>
             </a>
 
-            {/* Cart with total price */}
+            {/* Корзина */}
             <Link
               href="/cart"
               className="relative inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
@@ -84,16 +97,18 @@ export default function Header() {
               <ShoppingCart className="h-5 w-5" />
               <span className="hidden sm:flex items-baseline gap-1">
                 <span>฿</span>
-                <span className="font-semibold">{formatTHB(totalPriceTHB)}</span>
+                <span className="font-semibold">
+                  {showTotals ? formatTHB(totalPrice) : '—'}
+                </span>
               </span>
-              {totalQty > 0 && (
+              {showTotals && totalQty > 0 && (
                 <span className="absolute -top-2 -right-2 min-w-[1.5rem] rounded-full bg-blue-600 px-1.5 py-0.5 text-center text-[11px] font-bold">
                   {totalQty}
                 </span>
               )}
             </Link>
 
-            {/* Burger */}
+            {/* Бургер (мобилка) */}
             <button
               className="md:hidden inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 p-2 hover:bg-white/10 transition"
               onClick={() => setOpen((v) => !v)}
@@ -104,16 +119,12 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Mobile panel */}
+        {/* Панель для мобилки */}
         {open && (
           <div className="mt-3 grid gap-2 md:hidden">
-            {BRANDS.map((b) => (
-              <Link
-                key={b.slug}
-                href={`/${b.slug}`}
-                className="rounded-xl px-3 py-2 text-white/90 hover:text-white hover:bg-white/10 transition"
-              >
-                {b.name}
+            {[...BRANDS.map(b => ({ href: `/${b.slug}`, label: b.name })), ...NAV_PAGES].map((i) => (
+              <Link key={i.href} href={i.href} className="rounded-xl px-3 py-2 text-white/90 hover:text-white hover:bg-white/10 transition">
+                {i.label}
               </Link>
             ))}
           </div>
